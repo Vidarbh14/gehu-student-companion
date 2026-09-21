@@ -1,0 +1,232 @@
+// Prisma schema for GEHU Student Companion
+// Supports SQLite for instant local zero-dependency development
+// Can be switched to PostgreSQL for production Vercel deployment by updating provider and DATABASE_URL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String
+  passwordHash  String?
+  isAdmin       Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  profile       StudentProfile?
+  target        AttendanceTarget?
+  subjects      Subject[]
+  timetable     TimetableEntry[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId       String   // e.g. GEHU/2024/CSE/1042
+  rollNumber         String?
+  registrationNumber String?
+  campus             String   @default("Dehradun") // Dehradun, Bhimtal, Haldwani
+  course             String   @default("B.Tech")
+  branch             String   @default("CSE")
+  semester           String   @default("III")
+  section            String   @default("A")
+  batch              String   @default("2024-2028")
+  academicYear       String   @default("2026-27")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("student_profiles")
+}
+
+model AttendanceTarget {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetPercentage Float    @default(75.0)
+  safetyBuffer     Float    @default(2.0) // Produces conservative 77.0% effective threshold
+  strictMode       Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  @@map("attendance_targets")
+}
+
+model Subject {
+  id               String             @id @default(cuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code             String             // e.g. TCS-301
+  name             String             // e.g. Data Structures & Algorithms
+  credits          Int                @default(4)
+  type             String             @default("THEORY") // THEORY, LAB, PRACTICAL
+  color            String             @default("#0c81eb")
+  targetPercentage Float?
+  attendance       AttendanceRecord?
+  timetableEntries TimetableEntry[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@map("subjects")
+}
+
+model AttendanceRecord {
+  id          String   @id @default(cuid())
+  subjectId   String   @unique
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  conducted   Int      @default(0)
+  attended    Int      @default(0)
+  source      String   @default("MANUAL") // MANUAL, IMPORT, OCR, SYNC
+  notes       String?
+  lastUpdated DateTime @default(now())
+
+  @@map("attendance_records")
+}
+
+model TimetableEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  dayOfWeek String   // MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY
+  startTime String   // "09:00"
+  endTime   String   // "10:00"
+  room      String?  // "Room 204"
+  faculty   String?  // "Dr. Sharma"
+  section   String?
+  batch     String?
+  classType String   @default("THEORY") // THEORY, LAB
+
+  @@map("timetable_entries")
+}
+
+model AcademicEvent {
+  id          String   @id @default(cuid())
+  title       String
+  type        String   // SEMESTER_START, SEMESTER_END, HOLIDAY, TEACHING_DAY, TERM_EVALUATION, PRACTICAL_EXAM, THEORY_EXAM, END_SEM, SEMESTER_BREAK, INTERNSHIP, EVENT
+  startDate   DateTime
+  endDate     DateTime
+  semester    String?  // e.g. "ALL", "III", "V"
+  campus      String   @default("Dehradun")
+  source      String   @default("GEHU Academic Calendar")
+  sourceUrl   String?
+  isOfficial  Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("academic_events")
+}
+
+model Exam {
+  id                 String    @id @default(cuid())
+  subjectName        String
+  courseCode         String
+  date               DateTime
+  startTime          String    @default("10:00 AM")
+  endTime            String    @default("01:00 PM")
+  examType           String    @default("END_SEM") // MID_SEM, END_SEM, PRACTICAL, BACK_PAPER, SPECIAL
+  semester           String    @default("III")
+  campus             String    @default("Dehradun")
+  room               String?
+  source             String    @default("GEHU Exam Portal")
+  sourceUrl          String?
+  isBackPaper        Boolean   @default(false)
+  backPaperDeadline  DateTime?
+  backPaperFee       String?
+  officialNoticeUrl  String?
+  contentHash        String?
+  status             String    @default("SCHEDULED") // SCHEDULED, REVISED, CANCELLED, COMPLETED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("exams")
+}
+
+model Notice {
+  id          String   @id @default(cuid())
+  title       String
+  category    String   // EXAMS, ATTENDANCE, ACADEMIC, REGISTRATION, FEES, BACK_PAPERS, HOLIDAYS, RESULTS, PLACEMENTS, EVENTS, GENERAL
+  content     String
+  publishedAt DateTime @default(now())
+  sourceUrl   String?
+  source      String   @default("GEHU Public Notice Board")
+  campus      String?  // "Dehradun", "ALL"
+  course      String?  // "B.Tech", "ALL"
+  branch      String?  // "CSE", "ALL"
+  semester    String?  // "III", "ALL"
+  contentHash String?
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("notices")
+}
+
+model Document {
+  id                String    @id @default(cuid())
+  title             String
+  type              String    // ADMIT_CARD, SEATING_PLAN, EXAM_FORM, FEE_RECEIPT, SYLLABUS, ACADEMIC_CALENDAR, BACK_PAPER_FORM
+  fileUrl           String?
+  isOfficial        Boolean   @default(true)
+  requiresAuth      Boolean   @default(true)
+  officialPortalUrl String    @default("https://student.gehu.ac.in")
+  publishedAt       DateTime  @default(now())
+  status            String    @default("AVAILABLE") // AVAILABLE, UPCOMING, EXPIRED
+  semester          String?
+  campus            String    @default("Dehradun")
+  noticeReference   String?
+
+  @@map("documents")
+}
+
+model DataSource {
+  id            String      @id @default(cuid())
+  name          String      @unique // "GEHU Exam Portal", "GEHU Academic Calendar", "GEHU Notice Board", "GEHU Student Portal"
+  url           String
+  type          String      // CALENDAR, EXAMS, NOTICES, STUDENT_PORTAL
+  lastScrapedAt DateTime?
+  lastStatus    String      @default("PENDING") // SUCCESS, FAILED, RUNNING, PENDING
+  errorMessage  String?
+  recordsCount  Int         @default(0)
+  contentHash   String?
+  scrapeJobs    ScrapeJob[]
+
+  @@map("data_sources")
+}
+
+model ScrapeJob {
+  id           String     @id @default(cuid())
+  sourceId     String
+  dataSource   DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status       String     @default("PENDING") // PENDING, RUNNING, SUCCESS, FAILED
+  startedAt    DateTime   @default(now())
+  finishedAt   DateTime?
+  itemsFound   Int        @default(0)
+  itemsNew     Int        @default(0)
+  itemsUpdated Int        @default(0)
+  logs         String?
+
+  @@map("scrape_jobs")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // ATTENDANCE_WARNING, EXAM_REMINDER, BACK_PAPER_DEADLINE, ADMIT_CARD, NOTICE, SYSTEM
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}

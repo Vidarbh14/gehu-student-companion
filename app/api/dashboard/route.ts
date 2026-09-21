@@ -1,0 +1,287 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db/prisma";
+import {
+  calculateAttendancePercentage,
+  getEffectiveTarget,
+  determineAttendanceStatus,
+  calculateSubjectMetrics,
+  evaluateCanIMissTomorrow,
+} from "@/lib/attendance/attendanceEngine";
+import {
+  calculateDateAwareRemainingClasses,
+  getTomorrowSchedule,
+  getTodaySchedule,
+} from "@/lib/timetable/timetableEngine";
+import { AcademicCalendarEvent, TimetableSlot } from "@/types";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    // 1. Get demo/active student user
+    let user = await prisma.user.findFirst({
+      where: { email: "demo@gehu.ac.in" },
+      include: {
+        profile: true,
+        target: true,
+        subjects: {
+          include: {
+            attendance: true,
+          },
+        },
+        timetable: {
+          include: {
+            subject: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      // Fallback if not yet seeded
+      return NextResponse.json(
+        { error: "No student profile found. Please seed the database." },
+        { status: 404 }
+      );
+    }
+
+    // 2. Fetch academic events and exams
+    const rawEvents = await prisma.academicEvent.findMany({
+      orderBy: { startDate: "asc" },
+    });
+    const academicEvents: AcademicCalendarEvent[] = rawEvents.map((e) => ({
+      id: e.id,
+      title: e.title,
+      type: e.type as any,
+      startDate: e.startDate.toISOString(),
+      endDate: e.endDate.toISOString(),
+      semester: e.semester || undefined,
+      campus: e.campus,
+      source: e.source,
+      sourceUrl: e.sourceUrl || undefined,
+      isOfficial: e.isOfficial,
+      description: e.description || undefined,
+    }));
+
+    const rawTimetable = user.timetable;
+    const timetableSlots: TimetableSlot[] = rawTimetable.map((t) => ({
+      id: t.id,
+      subjectId: t.subjectId,
+      subjectName: t.subject.name,
+      subjectCode: t.subject.code,
+      dayOfWeek: t.dayOfWeek as any,
+      startTime: t.startTime,
+      endTime: t.endTime,
+      room: t.room || undefined,
+      faculty: t.faculty || undefined,
+      section: t.section || undefined,
+      classType: (t.classType as any) || "THEORY",
+      color: t.subject.color,
+    }));
+
+    // Find semester end date from academic events or default to Dec 24, 2026
+    const semEndEvent = academicEvents.find((e) => e.type === "SEMESTER_END");
+    const semesterEndDate = semEndEvent
+      ? new Date(semEndEvent.startDate)
+      : new Date("2026-12-24");
+
+    // 3. Compute date-aware remaining classes
+    const currentDate = new Date();
+    const remainingClassesMap = calculateDateAwareRemainingClasses({
+      currentDate,
+      semesterEndDate,
+      timetable: timetableSlots,
+      academicEvents,
+    });
+
+    const targetPercentage = user.target?.targetPercentage ?? 75.0;
+    const safetyBuffer = user.target?.safetyBuffer ?? 2.0;
+    const effectiveTarget = getEffectiveTarget(targetPercentage, safetyBuffer);
+
+    // 4. Calculate subject metrics
+    let totalAttended = 0;
+    let totalConducted = 0;
+    let totalRemainingClasses = 0;
+    let totalMaxAbsencesAllowed = 0;
+
+    const subjectsMetrics = user.subjects.map((s) => {
+      const att = s.attendance?.attended ?? 0;
+      const cond = s.attendance?.conducted ?? 0;
+      const remaining = remainingClassesMap[s.id] ?? 18;
+
+      totalAttended += att;
+      totalConducted += cond;
+      totalRemainingClasses += remaining;
+
+      const metrics = calculateSubjectMetrics({
+        subjectId: s.id,
+        subjectCode: s.code,
+        subjectName: s.name,
+        credits: s.credits,
+        type: (s.type as any) || "THEORY",
+        color: s.color,
+        attended: att,
+        conducted: cond,
+        remainingClasses: remaining,
+        targetPercentage,
+        safetyBuffer,
+      });
+
+      totalMaxAbsencesAllowed += metrics.maxAbsencesAllowed;
+
+      return metrics;
+    });
+
+    const overallPercentage = calculateAttendancePercentage(
+      totalAttended,
+      totalConducted
+    );
+    const overallStatus = determineAttendanceStatus(
+      overallPercentage,
+      targetPercentage,
+      safetyBuffer
+    );
+
+    // 5. Compute tomorrow's schedule and "Can I miss tomorrow?"
+    const tomorrowSchedule = getTomorrowSchedule({
+      referenceDate: currentDate,
+      timetable: timetableSlots,
+      academicEvents,
+    });
+
+    const tomorrowSubjectsData = tomorrowSchedule.slots.map((slot) => {
+      const sub = user.subjects.find((s) => s.id === slot.subjectId);
+      return {
+        subjectId: slot.subjectId,
+        subjectCode: slot.subjectCode,
+        subjectName: slot.subjectName,
+        slotsCount: 1,
+        attended: sub?.attendance?.attended ?? 0,
+        conducted: sub?.attendance?.conducted ?? 0,
+      };
+    });
+
+    const missTomorrowResult = evaluateCanIMissTomorrow({
+      date: tomorrowSchedule.date,
+      dayOfWeek: tomorrowSchedule.dayOfWeek,
+      scheduledSubjects: tomorrowSubjectsData,
+      targetPercentage,
+      safetyBuffer,
+    });
+
+    // 6. Today's schedule
+    const todaySchedule = getTodaySchedule({
+      referenceDate: currentDate,
+      timetable: timetableSlots,
+      academicEvents,
+    });
+
+    // 7. Upcoming next exam
+    const upcomingExam = await prisma.exam.findFirst({
+      where: {
+        date: { gte: new Date() },
+        status: { not: "CANCELLED" },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    // 8. Latest pinned or important notice
+    const importantNotice = await prisma.notice.findFirst({
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+    });
+
+    // 9. Deterministic Smart Academic Insights
+    const smartInsights: string[] = [];
+
+    // Find any critical subject
+    const criticalSubjects = subjectsMetrics.filter(
+      (s) => s.status === "CRITICAL"
+    );
+    if (criticalSubjects.length > 0) {
+      for (const cs of criticalSubjects) {
+        smartInsights.push(
+          `Your ${cs.subjectName} (${cs.subjectCode}) attendance is ${cs.currentPercentage}%. You currently need to attend the next ${cs.recoveryClassesNeeded} classes consecutively to recover to ${targetPercentage}%.`
+        );
+      }
+    }
+
+    // High buffer subjects
+    const safeSubjects = subjectsMetrics.filter(
+      (s) => s.currentPercentage >= 85
+    );
+    if (safeSubjects.length > 0) {
+      const topSafe = safeSubjects[0];
+      smartInsights.push(
+        `Your ${topSafe.subjectName} attendance is ${topSafe.currentPercentage}%. You have a strong buffer and can miss up to ${topSafe.maxAbsencesAllowed} classes right now.`
+      );
+    }
+
+    if (tomorrowSchedule.slots.length > 0) {
+      smartInsights.push(
+        `${tomorrowSchedule.slots.length} classes are scheduled tomorrow (${tomorrowSchedule.dayOfWeek}). Overall verdict: ${missTomorrowResult.verdict.replace(
+          "_",
+          " "
+        )}.`
+      );
+    } else if (tomorrowSchedule.isHoliday) {
+      smartInsights.push(
+        `Tomorrow is a university holiday: ${
+          tomorrowSchedule.specialEventTitle || "No classes scheduled"
+        }.`
+      );
+    }
+
+    if (upcomingExam) {
+      const diffDays = Math.ceil(
+        (new Date(upcomingExam.date).getTime() - currentDate.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+      smartInsights.push(
+        `Your next examination (${upcomingExam.subjectName}) is in ${diffDays} days on ${new Date(
+          upcomingExam.date
+        ).toLocaleDateString("en-IN", {
+          month: "short",
+          day: "numeric",
+        })}.`
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      student: {
+        name: user.name,
+        email: user.email,
+        profile: user.profile,
+        target: {
+          targetPercentage,
+          safetyBuffer,
+          effectiveTarget,
+        },
+      },
+      attendance: {
+        overallPercentage,
+        overallStatus,
+        totalAttended,
+        totalConducted,
+        totalRemainingClasses,
+        totalClassesCanMiss: Math.max(
+          0,
+          Math.floor(totalAttended / (effectiveTarget / 100) - totalConducted)
+        ),
+        subjects: subjectsMetrics,
+      },
+      missTomorrow: missTomorrowResult,
+      todaySchedule,
+      tomorrowSchedule,
+      upcomingExam,
+      importantNotice,
+      smartInsights,
+    });
+  } catch (err: any) {
+    console.error("[API /dashboard] Error:", err);
+    return NextResponse.json(
+      { error: "Failed to load dashboard data: " + err.message },
+      { status: 500 }
+    );
+  }
+}
