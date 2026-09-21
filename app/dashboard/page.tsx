@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Plus,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SourceBadge } from "@/components/SourceBadge";
@@ -52,6 +53,32 @@ export default function DashboardPage() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboard();
+  };
+
+  const handleQuickMark = async (subjectId: string, isPresent: boolean) => {
+    try {
+      await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "quickMark", subjectId, isPresent }),
+      });
+      fetchDashboard();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSeedDefaultSubjects = async () => {
+    try {
+      await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "seedDefaultSubjects" }),
+      });
+      fetchDashboard();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   if (loading) {
@@ -340,6 +367,147 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* Section: Per-Subject Attendance Breakdown */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                <BookOpen className="w-5 h-5" />
+              </span>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                Per-Subject Attendance Breakdown
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Your real-time attendance percentage, attended vs. conducted lectures, and safe miss calculations for each subject.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/attendance"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 inline-flex items-center gap-1.5 transition-all"
+            >
+              <span>Manage & Simulate Attendance</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Subjects Grid */}
+        {attendance.subjects?.length === 0 ? (
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              No subjects registered yet for this student account.
+            </p>
+            <button
+              onClick={handleSeedDefaultSubjects}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Load GEHU Semester Subjects</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {attendance.subjects.map((sub: any) => (
+              <div
+                key={sub.subjectId}
+                className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4 transition-all hover:border-blue-300 dark:hover:border-blue-700"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-mono">
+                        {sub.subjectCode}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {sub.credits} Credits • {sub.type}
+                      </span>
+                    </div>
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
+                      {sub.subjectName}
+                    </h3>
+                  </div>
+                  <StatusBadge status={sub.status} size="sm" />
+                </div>
+
+                {/* Score & Ring */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <div>
+                    <div className="text-3xl font-black text-slate-900 dark:text-white">
+                      {sub.currentPercentage}%
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {sub.attended} / {sub.conducted} classes attended
+                    </span>
+                  </div>
+                  <AttendanceRing
+                    percentage={sub.currentPercentage}
+                    target={student.target.targetPercentage}
+                    size={60}
+                    strokeWidth={6}
+                    showText={false}
+                  />
+                </div>
+
+                {/* Absences / Margin details */}
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Classes you can miss now:</span>
+                    <span
+                      className={`font-black ${
+                        sub.maxAbsencesAllowed > 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-rose-500"
+                      }`}
+                    >
+                      {sub.maxAbsencesAllowed > 0
+                        ? `${sub.maxAbsencesAllowed} classes safe`
+                        : "0 classes (Shortage risk)"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Safe future absences:</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                      up to {sub.maxFutureAbsences} classes
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick mark */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    Quick Mark:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleQuickMark(sub.subjectId, true)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1 transition-all"
+                      title="Mark Present"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>+1 Present</span>
+                    </button>
+                    <button
+                      onClick={() => handleQuickMark(sub.subjectId, false)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center gap-1 transition-all"
+                      title="Mark Absent"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>+1 Absent</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Middle Section: Today's Timeline + Smart Academic Insights (Section 24, 25) */}

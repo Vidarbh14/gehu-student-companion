@@ -18,6 +18,7 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { SourceBadge } from "@/components/SourceBadge";
 import { AttendanceRing } from "@/components/AttendanceRing";
+import { AuthModal } from "@/components/AuthModal";
 
 export default function AttendancePage() {
   const [data, setData] = useState<any>(null);
@@ -26,6 +27,7 @@ export default function AttendancePage() {
   const [bufferSlider, setBufferSlider] = useState(2);
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [newSubCode, setNewSubCode] = useState("");
   const [newSubName, setNewSubName] = useState("");
   const [newSubAttended, setNewSubAttended] = useState(0);
@@ -39,11 +41,26 @@ export default function AttendancePage() {
         setData(json);
         setTargetSlider(json.target.targetPercentage);
         setBufferSlider(json.target.safetyBuffer);
+      } else if (json.unauthenticated) {
+        setAuthModalOpen(true);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSeedDefaultSubjects = async () => {
+    try {
+      await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "seedDefaultSubjects" }),
+      });
+      fetchAttendance();
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -314,12 +331,26 @@ export default function AttendancePage() {
           All Registered Subjects ({subjects.length})
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {subjects.map((sub: any) => (
-            <div
-              key={sub.subjectId}
-              className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-5 transition-all hover:border-slate-300 dark:hover:border-slate-700"
+        {subjects.length === 0 ? (
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              No subjects registered yet for this student account.
+            </p>
+            <button
+              onClick={handleSeedDefaultSubjects}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-2"
             >
+              <RotateCcw className="w-4 h-4" />
+              <span>Load GEHU Semester Subjects</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {subjects.map((sub: any) => (
+              <div
+                key={sub.subjectId}
+                className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-5 transition-all hover:border-slate-300 dark:hover:border-slate-700"
+              >
               {/* Top row */}
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -418,6 +449,7 @@ export default function AttendancePage() {
             </div>
           ))}
         </div>
+      )}
       </div>
 
       {/* Add Subject Modal */}
@@ -506,6 +538,15 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
+
+      <AuthModal
+        isOpen={authModalOpen}
+        canClose={false}
+        onSuccess={() => {
+          setAuthModalOpen(false);
+          fetchAttendance();
+        }}
+      />
     </div>
   );
 }

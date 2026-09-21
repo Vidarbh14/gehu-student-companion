@@ -88,12 +88,49 @@ export async function GET() {
     const effectiveTarget = getEffectiveTarget(targetPercentage, safetyBuffer);
 
     // 4. Calculate subject metrics
+    let userSubjects = user.subjects || [];
+    if (userSubjects.length === 0) {
+      const defaultSubjects = [
+        { code: "TCS-301", name: "Data Structures & Algorithms", credits: 4, type: "THEORY", color: "#0c81eb", conducted: 35, attended: 30 },
+        { code: "TCS-302", name: "Discrete Mathematics & Graph Theory", credits: 4, type: "THEORY", color: "#8b5cf6", conducted: 32, attended: 26 },
+        { code: "TCS-303", name: "Operating Systems Principles", credits: 4, type: "THEORY", color: "#10b981", conducted: 30, attended: 27 },
+        { code: "TEC-301", name: "Digital Electronics & Logic Design", credits: 3, type: "THEORY", color: "#ef4444", conducted: 28, attended: 20 },
+        { code: "TCS-304", name: "Computer Organization & Architecture", credits: 3, type: "THEORY", color: "#f59e0b", conducted: 28, attended: 22 },
+        { code: "PCS-301", name: "Data Structures Laboratory", credits: 1, type: "LAB", color: "#06b6d4", conducted: 10, attended: 9 },
+      ];
+
+      for (const s of defaultSubjects) {
+        await prisma.subject.create({
+          data: {
+            userId: user.id,
+            code: s.code,
+            name: s.name,
+            credits: s.credits,
+            type: s.type,
+            color: s.color,
+            attendance: {
+              create: {
+                conducted: s.conducted,
+                attended: s.attended,
+                source: "MANUAL",
+              },
+            },
+          },
+        });
+      }
+
+      userSubjects = await prisma.subject.findMany({
+        where: { userId: user.id },
+        include: { attendance: true },
+      });
+    }
+
     let totalAttended = 0;
     let totalConducted = 0;
     let totalRemainingClasses = 0;
     let totalMaxAbsencesAllowed = 0;
 
-    const subjectsMetrics = (user.subjects || []).map((s: any) => {
+    const subjectsMetrics = userSubjects.map((s: any) => {
       const att = s.attendance?.attended ?? 0;
       const cond = s.attendance?.conducted ?? 0;
       const remaining = remainingClassesMap[s.id] ?? 18;
