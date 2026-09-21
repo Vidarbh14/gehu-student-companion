@@ -8,6 +8,8 @@ import { CommandPalette } from "./CommandPalette";
 import { ImportModal } from "./ImportModal";
 import { AuthModal } from "./AuthModal";
 
+import { apiFetch } from "@/lib/apiClient";
+
 export const ClientShell: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -18,22 +20,36 @@ export const ClientShell: React.FC<{ children: React.ReactNode }> = ({
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    // Check if user already authenticated in localStorage
+    const localToken =
+      typeof window !== "undefined"
+        ? localStorage.getItem("gehu_student_session")
+        : null;
+
+    apiFetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated) {
           setIsAuthenticated(true);
+          setAuthModalOpen(false);
+          if (data.token) {
+            localStorage.setItem("gehu_student_session", data.token);
+          }
         } else {
-          setIsAuthenticated(false);
-          // Ask for login details immediately if not authenticated!
-          const isPrivacyPage = pathname === "/privacy";
-          if (!isPrivacyPage) {
-            setAuthModalOpen(true);
+          // If we have localToken, give it a chance, else open login modal
+          if (!localToken) {
+            setIsAuthenticated(false);
+            const isPrivacyPage = pathname === "/privacy";
+            if (!isPrivacyPage) {
+              setAuthModalOpen(true);
+            }
           }
         }
       })
       .catch(() => {
-        setIsAuthenticated(false);
+        if (!localToken) {
+          setIsAuthenticated(false);
+        }
       });
   }, [pathname]);
 

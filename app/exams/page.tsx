@@ -14,13 +14,14 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { SourceBadge } from "@/components/SourceBadge";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function ExamsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/exams")
+    apiFetch("/api/exams")
       .then((res) => res.json())
       .then((d) => {
         if (d.success) setData(d);

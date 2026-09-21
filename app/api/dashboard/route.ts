@@ -97,6 +97,8 @@ export async function GET() {
         { code: "TEC-301", name: "Digital Electronics & Logic Design", credits: 3, type: "THEORY", color: "#ef4444", conducted: 28, attended: 20 },
         { code: "TCS-304", name: "Computer Organization & Architecture", credits: 3, type: "THEORY", color: "#f59e0b", conducted: 28, attended: 22 },
         { code: "PCS-301", name: "Data Structures Laboratory", credits: 1, type: "LAB", color: "#06b6d4", conducted: 10, attended: 9 },
+        { code: "PEC-301", name: "Digital Electronics Laboratory", credits: 1, type: "LAB", color: "#14b8a6", conducted: 10, attended: 8 },
+        { code: "PCS-303", name: "Operating Systems Laboratory", credits: 1, type: "LAB", color: "#6366f1", conducted: 10, attended: 9 },
       ];
 
       for (const s of defaultSubjects) {
@@ -127,6 +129,10 @@ export async function GET() {
 
     let totalAttended = 0;
     let totalConducted = 0;
+    let theoryAttended = 0;
+    let theoryConducted = 0;
+    let labAttended = 0;
+    let labConducted = 0;
     let totalRemainingClasses = 0;
     let totalMaxAbsencesAllowed = 0;
 
@@ -134,17 +140,30 @@ export async function GET() {
       const att = s.attendance?.attended ?? 0;
       const cond = s.attendance?.conducted ?? 0;
       const remaining = remainingClassesMap[s.id] ?? 18;
+      const isLab =
+        s.type === "LAB" ||
+        s.code.toUpperCase().startsWith("P") ||
+        s.name.toLowerCase().includes("lab") ||
+        s.name.toLowerCase().includes("practical");
 
       totalAttended += att;
       totalConducted += cond;
       totalRemainingClasses += remaining;
+
+      if (isLab) {
+        labAttended += att;
+        labConducted += cond;
+      } else {
+        theoryAttended += att;
+        theoryConducted += cond;
+      }
 
       const metrics = calculateSubjectMetrics({
         subjectId: s.id,
         subjectCode: s.code,
         subjectName: s.name,
         credits: s.credits,
-        type: (s.type as any) || "THEORY",
+        type: isLab ? "LAB" : "THEORY",
         color: s.color,
         attended: att,
         conducted: cond,
@@ -164,6 +183,26 @@ export async function GET() {
     );
     const overallStatus = determineAttendanceStatus(
       overallPercentage,
+      targetPercentage,
+      safetyBuffer
+    );
+
+    const theoryPercentage = calculateAttendancePercentage(
+      theoryAttended,
+      theoryConducted
+    );
+    const theoryStatus = determineAttendanceStatus(
+      theoryPercentage,
+      targetPercentage,
+      safetyBuffer
+    );
+
+    const labPercentage = calculateAttendancePercentage(
+      labAttended,
+      labConducted
+    );
+    const labStatus = determineAttendanceStatus(
+      labPercentage,
       targetPercentage,
       safetyBuffer
     );
@@ -294,6 +333,28 @@ export async function GET() {
           0,
           Math.floor(totalAttended / (effectiveTarget / 100) - totalConducted)
         ),
+        theory: {
+          attended: theoryAttended,
+          conducted: theoryConducted,
+          percentage: theoryPercentage,
+          status: theoryStatus,
+          canMiss: Math.max(
+            0,
+            Math.floor(theoryAttended / (effectiveTarget / 100) - theoryConducted)
+          ),
+          count: subjectsMetrics.filter((s: any) => s.type !== "LAB").length,
+        },
+        labs: {
+          attended: labAttended,
+          conducted: labConducted,
+          percentage: labPercentage,
+          status: labStatus,
+          canMiss: Math.max(
+            0,
+            Math.floor(labAttended / (effectiveTarget / 100) - labConducted)
+          ),
+          count: subjectsMetrics.filter((s: any) => s.type === "LAB").length,
+        },
         subjects: subjectsMetrics,
       },
       missTomorrow: missTomorrowResult,

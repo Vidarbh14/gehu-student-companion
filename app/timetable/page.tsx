@@ -13,6 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { ImportModal } from "@/components/ImportModal";
+import { apiFetch } from "@/lib/apiClient";
 
 const DAYS = [
   "MONDAY",
@@ -41,7 +42,7 @@ export default function TimetablePage() {
 
   const fetchTimetable = async () => {
     try {
-      const res = await fetch("/api/timetable");
+      const res = await apiFetch("/api/timetable");
       const data = await res.json();
       if (data.success) {
         setTimetable(data.timetable);
@@ -63,7 +64,7 @@ export default function TimetablePage() {
 
   const handleDeleteSlot = async (slotId: string) => {
     try {
-      await fetch("/api/timetable", {
+      await apiFetch("/api/timetable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", slotId }),
@@ -77,7 +78,7 @@ export default function TimetablePage() {
   const handleCreateSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch("/api/timetable", {
+      await apiFetch("/api/timetable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

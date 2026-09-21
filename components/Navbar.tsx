@@ -23,6 +23,7 @@ import {
   LogIn,
 } from "lucide-react";
 import { NotificationDropdown } from "./NotificationDropdown";
+import { apiFetch } from "@/lib/apiClient";
 import { AuthModal } from "./AuthModal";
 
 export const Navbar: React.FC<{ onOpenSearch?: () => void }> = ({
@@ -50,7 +51,7 @@ export const Navbar: React.FC<{ onOpenSearch?: () => void }> = ({
     }
 
     // Fetch authenticated student
-    fetch("/api/auth/me")
+    apiFetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated && data.user) {
@@ -76,6 +77,9 @@ export const Navbar: React.FC<{ onOpenSearch?: () => void }> = ({
 
   const handleLogout = async () => {
     try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("gehu_student_session");
+      }
       await fetch("/api/auth/logout", { method: "POST" });
       setStudent(null);
       window.location.href = "/";

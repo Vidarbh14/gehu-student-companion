@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { User, Shield, Check, Save, RotateCcw, Building, BookOpen } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>({
@@ -24,7 +25,7 @@ export default function ProfilePage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/profile/data")
+    apiFetch("/api/profile/data")
       .then((res) => res.json())
       .then((d) => {
         if (d.success && d.user) {
@@ -47,7 +48,7 @@ export default function ProfilePage() {
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/profile/data", {
+      const res = await apiFetch("/api/profile/data", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile),

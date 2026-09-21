@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SourceBadge } from "@/components/SourceBadge";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function MissTomorrowPage() {
   const [data, setData] = useState<any>(null);
@@ -27,7 +28,7 @@ export default function MissTomorrowPage() {
       const url = dateStr
         ? `/api/attendance/miss-tomorrow?date=${dateStr}`
         : `/api/attendance/miss-tomorrow`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       const json = await res.json();
       if (json.success) {
         setData(json);

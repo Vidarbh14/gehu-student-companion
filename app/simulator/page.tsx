@@ -23,6 +23,7 @@ import {
 } from "recharts";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SourceBadge } from "@/components/SourceBadge";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function SimulatorPage() {
   const [attended, setAttended] = useState(36);
@@ -36,7 +37,7 @@ export default function SimulatorPage() {
 
   const runSimulation = async () => {
     try {
-      const res = await fetch("/api/attendance/what-if", {
+      const res = await apiFetch("/api/attendance/what-if", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -59,7 +60,7 @@ export default function SimulatorPage() {
 
   const fetchForecast = async () => {
     try {
-      const res = await fetch("/api/attendance/forecast");
+      const res = await apiFetch("/api/attendance/forecast");
       const data = await res.json();
       if (data.success) {
         setForecastCurve(data.forecastPoints);

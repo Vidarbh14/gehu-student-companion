@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
-import { STUDENT_SESSION_COOKIE } from "@/lib/auth/session";
+import { STUDENT_SESSION_COOKIE, createStudentSessionToken } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +123,8 @@ export async function POST(req: Request) {
             { code: "TEC-301", name: "Digital Electronics & Logic Design", credits: 3, type: "THEORY", color: "#ef4444", conducted: 28, attended: 20 },
             { code: "TCS-304", name: "Computer Organization & Architecture", credits: 3, type: "THEORY", color: "#f59e0b", conducted: 28, attended: 22 },
             { code: "PCS-301", name: "Data Structures Laboratory", credits: 1, type: "LAB", color: "#06b6d4", conducted: 10, attended: 9 },
+            { code: "PEC-301", name: "Digital Electronics Laboratory", credits: 1, type: "LAB", color: "#14b8a6", conducted: 10, attended: 8 },
+            { code: "PCS-303", name: "Operating Systems Laboratory", credits: 1, type: "LAB", color: "#6366f1", conducted: 10, attended: 9 },
           ];
 
       for (const s of initialSubjects) {
@@ -146,17 +148,34 @@ export async function POST(req: Request) {
       }
     }
 
-    // Set authenticated session cookie
+    // Generate signed, tamper-proof persistent session token
+    const sessionToken = createStudentSessionToken({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      rollNumber: user.profile?.rollNumber || cleanRoll,
+      universityId: user.profile?.universityId,
+      campus: user.profile?.campus,
+      course: user.profile?.course,
+      branch: user.profile?.branch,
+      semester: user.profile?.semester,
+      section: user.profile?.section,
+      targetPercentage: user.target?.targetPercentage,
+      safetyBuffer: user.target?.safetyBuffer,
+    });
+
+    // Set authenticated session cookie (90 days)
     const cookieStore = cookies();
-    cookieStore.set(STUDENT_SESSION_COOKIE, user.id, {
+    cookieStore.set(STUDENT_SESSION_COOKIE, sessionToken, {
       path: "/",
       httpOnly: true,
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: 60 * 60 * 24 * 90, // 90 days
       sameSite: "lax",
     });
 
     return NextResponse.json({
       success: true,
+      token: sessionToken,
       user: {
         id: user.id,
         name: user.name,

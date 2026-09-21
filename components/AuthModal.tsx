@@ -108,6 +108,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const data = await res.json();
 
       if (data.success) {
+        if (data.token) {
+          localStorage.setItem("gehu_student_session", data.token);
+        }
         if (onSuccess) onSuccess(data.user);
         window.location.reload();
       } else {
@@ -152,6 +155,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const data = await res.json();
 
       if (data.success) {
+        if (data.token) {
+          localStorage.setItem("gehu_student_session", data.token);
+        }
         if (onSuccess) onSuccess(data.user);
         window.location.reload();
       } else {
