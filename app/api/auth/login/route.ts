@@ -49,12 +49,17 @@ export async function POST(req: Request) {
 
     if (user) {
       // Update student profile with latest details
-      await prisma.user.update({
+      user = await prisma.user.update({
         where: { id: user.id },
         data: { name: cleanName },
+        include: {
+          profile: true,
+          target: true,
+          subjects: { include: { attendance: true } },
+        },
       });
 
-      await prisma.studentProfile.update({
+      const updatedProfile = await prisma.studentProfile.update({
         where: { userId: user.id },
         data: {
           campus: campus || user.profile?.campus || "Dehradun",
@@ -64,15 +69,17 @@ export async function POST(req: Request) {
           section: section || user.profile?.section || "A",
         },
       });
+      user.profile = updatedProfile;
 
       if (targetPercentage || safetyBuffer) {
-        await prisma.attendanceTarget.update({
+        const updatedTarget = await prisma.attendanceTarget.update({
           where: { userId: user.id },
           data: {
             targetPercentage: parseFloat(targetPercentage) || 75.0,
             safetyBuffer: parseFloat(safetyBuffer) || 2.0,
           },
         });
+        user.target = updatedTarget;
       }
     } else {
       // Create new student record
