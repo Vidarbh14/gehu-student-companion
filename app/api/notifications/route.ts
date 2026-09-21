@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { getAuthenticatedStudent } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ notifications: [] });
+      return NextResponse.json({ notifications: [], unreadCount: 0 });
     }
 
     const notifications = await prisma.notification.findMany({
@@ -39,12 +38,10 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { notificationId, markAll } = body;
 
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json({ error: "User not authenticated." }, { status: 401 });
     }
 
     if (markAll) {

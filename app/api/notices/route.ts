@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { getAuthenticatedStudent } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +10,8 @@ export async function GET(req: Request) {
     const category = searchParams.get("category");
     const query = searchParams.get("q")?.toLowerCase();
 
-    // Fetch user profile for personalization
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-      include: { profile: true },
-    });
-
+    // Fetch authenticated user profile for personalization
+    const user = await getAuthenticatedStudent();
     const userProfile = user?.profile;
 
     const whereClause: any = {};

@@ -103,7 +103,7 @@ export default function LandingPage() {
                   Graphic Era Hill University • Dehradun Campus
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                  Good Morning, Demo Student
+                  Good Morning, Graphic Era Student
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   B.Tech CSE • III Semester • Section A • 2026-27

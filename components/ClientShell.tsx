@@ -25,9 +25,9 @@ export const ClientShell: React.FC<{ children: React.ReactNode }> = ({
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
-          // If on a student page and not logged in, ask for login details immediately!
-          const isPublicPage = pathname === "/" || pathname === "/privacy" || pathname === "/login";
-          if (!isPublicPage) {
+          // Ask for login details immediately if not authenticated!
+          const isPrivacyPage = pathname === "/privacy";
+          if (!isPrivacyPage) {
             setAuthModalOpen(true);
           }
         }

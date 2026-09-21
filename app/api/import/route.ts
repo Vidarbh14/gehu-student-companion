@@ -3,18 +3,20 @@ import { prisma } from "@/lib/db/prisma";
 import { parseAttendanceCSV, parseTimetableCSV } from "@/lib/parsers/csvParser";
 import { parseAcademicJSON } from "@/lib/parsers/jsonParser";
 import { processExtractedOCRText } from "@/lib/parsers/ocrParser";
+import { getAuthenticatedStudent } from "@/lib/auth/session";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { type, content, confirmedRecords } = body;
 
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Please log in with your Student ID before importing records.", unauthenticated: true },
+        { status: 401 }
+      );
     }
 
     // 1. Process OCR text extraction & verification

@@ -2,17 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import { User, Shield, Check, Save, RotateCcw, Building, BookOpen } from "lucide-react";
+import { AuthModal } from "@/components/AuthModal";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>({
-    name: "Demo Student",
+    name: "",
     campus: "Dehradun",
     course: "B.Tech",
     branch: "CSE",
     semester: "III",
     section: "A",
-    rollNumber: "24150021",
-    universityId: "GEHU/2024/CSE/1042",
+    rollNumber: "",
+    universityId: "",
     academicYear: "2026-27",
     targetPercentage: 75,
     safetyBuffer: 2,
@@ -20,6 +21,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/profile/data")
@@ -32,6 +34,8 @@ export default function ProfilePage() {
             targetPercentage: d.user.target?.targetPercentage || 75,
             safetyBuffer: d.user.target?.safetyBuffer || 2,
           });
+        } else if (d.unauthenticated) {
+          setAuthModalOpen(true);
         }
       })
       .catch(console.error)
@@ -216,6 +220,15 @@ export default function ProfilePage() {
           </button>
         </div>
       </form>
+
+      <AuthModal
+        isOpen={authModalOpen}
+        canClose={false}
+        onSuccess={() => {
+          setAuthModalOpen(false);
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }
