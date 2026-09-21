@@ -20,11 +20,13 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { SourceBadge } from "@/components/SourceBadge";
 import { AttendanceRing } from "@/components/AttendanceRing";
+import { AuthModal } from "@/components/AuthModal";
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const fetchDashboard = async () => {
     try {
@@ -32,6 +34,8 @@ export default function DashboardPage() {
       const json = await res.json();
       if (json.success) {
         setData(json);
+      } else if (json.unauthenticated) {
+        setAuthModalOpen(true);
       }
     } catch (err) {
       console.error("Dashboard error:", err);
@@ -65,18 +69,34 @@ export default function DashboardPage() {
 
   if (!data) {
     return (
-      <div className="max-w-xl mx-auto my-20 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center space-y-4">
-        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto" />
-        <h2 className="text-xl font-bold">Failed to load academic dashboard</h2>
-        <p className="text-xs text-slate-500">
-          Ensure the database is initialized and seeded.
+      <div className="max-w-xl mx-auto my-20 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl text-center space-y-5 shadow-xl">
+        <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
+          <GraduationCap className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+          Please Log In with Your Student ID
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+          Log in with your Graphic Era Hill University credentials or enter your roll number to access your real attendance, safe absences calculation, and weekly timetable.
         </p>
-        <button
-          onClick={handleRefresh}
-          className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl"
-        >
-          Retry
-        </button>
+        <div className="pt-2">
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/25 inline-flex items-center gap-2 transition-all"
+          >
+            <span>Log In with Student ID</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <AuthModal
+          isOpen={authModalOpen}
+          canClose={false}
+          onSuccess={() => {
+            setAuthModalOpen(false);
+            fetchDashboard();
+          }}
+        />
       </div>
     );
   }

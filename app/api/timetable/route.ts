@@ -1,23 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 
+import { getAuthenticatedStudent } from "@/lib/auth/session";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-      include: {
-        subjects: true,
-        timetable: {
-          include: { subject: true },
-          orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
-        },
-      },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json({ error: "Please log in first.", unauthenticated: true }, { status: 401 });
     }
 
     return NextResponse.json({
@@ -39,12 +32,10 @@ export async function POST(req: Request) {
     const { action, slotId, subjectId, dayOfWeek, startTime, endTime, room, faculty, classType } =
       body;
 
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json({ error: "Please log in first.", unauthenticated: true }, { status: 401 });
     }
 
     if (action === "delete" && slotId) {

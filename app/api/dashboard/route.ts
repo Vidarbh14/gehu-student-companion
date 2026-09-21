@@ -14,34 +14,23 @@ import {
 } from "@/lib/timetable/timetableEngine";
 import { AcademicCalendarEvent, TimetableSlot } from "@/types";
 
+import { getAuthenticatedStudent } from "@/lib/auth/session";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    // 1. Get demo/active student user
-    let user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-      include: {
-        profile: true,
-        target: true,
-        subjects: {
-          include: {
-            attendance: true,
-          },
-        },
-        timetable: {
-          include: {
-            subject: true,
-          },
-        },
-      },
-    });
+    // 1. Get authenticated student user
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      // Fallback if not yet seeded
       return NextResponse.json(
-        { error: "No student profile found. Please seed the database." },
-        { status: 404 }
+        {
+          success: false,
+          unauthenticated: true,
+          error: "Please log in with your Student ID to view your dashboard.",
+        },
+        { status: 401 }
       );
     }
 
@@ -63,12 +52,12 @@ export async function GET() {
       description: e.description || undefined,
     }));
 
-    const rawTimetable = user.timetable;
-    const timetableSlots: TimetableSlot[] = rawTimetable.map((t) => ({
+    const rawTimetable = user.timetable || [];
+    const timetableSlots: TimetableSlot[] = rawTimetable.map((t: any) => ({
       id: t.id,
       subjectId: t.subjectId,
-      subjectName: t.subject.name,
-      subjectCode: t.subject.code,
+      subjectName: t.subject?.name || "Subject",
+      subjectCode: t.subject?.code || "TCS",
       dayOfWeek: t.dayOfWeek as any,
       startTime: t.startTime,
       endTime: t.endTime,
@@ -76,7 +65,7 @@ export async function GET() {
       faculty: t.faculty || undefined,
       section: t.section || undefined,
       classType: (t.classType as any) || "THEORY",
-      color: t.subject.color,
+      color: t.subject?.color || "#0c81eb",
     }));
 
     // Find semester end date from academic events or default to Dec 24, 2026
@@ -104,7 +93,7 @@ export async function GET() {
     let totalRemainingClasses = 0;
     let totalMaxAbsencesAllowed = 0;
 
-    const subjectsMetrics = user.subjects.map((s) => {
+    const subjectsMetrics = (user.subjects || []).map((s: any) => {
       const att = s.attendance?.attended ?? 0;
       const cond = s.attendance?.conducted ?? 0;
       const remaining = remainingClassesMap[s.id] ?? 18;
@@ -150,7 +139,7 @@ export async function GET() {
     });
 
     const tomorrowSubjectsData = tomorrowSchedule.slots.map((slot) => {
-      const sub = user.subjects.find((s) => s.id === slot.subjectId);
+      const sub = (user.subjects || []).find((s: any) => s.id === slot.subjectId);
       return {
         subjectId: slot.subjectId,
         subjectCode: slot.subjectCode,
@@ -195,7 +184,7 @@ export async function GET() {
 
     // Find any critical subject
     const criticalSubjects = subjectsMetrics.filter(
-      (s) => s.status === "CRITICAL"
+      (s: any) => s.status === "CRITICAL"
     );
     if (criticalSubjects.length > 0) {
       for (const cs of criticalSubjects) {
@@ -207,7 +196,7 @@ export async function GET() {
 
     // High buffer subjects
     const safeSubjects = subjectsMetrics.filter(
-      (s) => s.currentPercentage >= 85
+      (s: any) => s.currentPercentage >= 85
     );
     if (safeSubjects.length > 0) {
       const topSafe = safeSubjects[0];

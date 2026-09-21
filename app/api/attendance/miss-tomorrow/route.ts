@@ -4,6 +4,8 @@ import { evaluateCanIMissTomorrow } from "@/lib/attendance/attendanceEngine";
 import { getTomorrowSchedule } from "@/lib/timetable/timetableEngine";
 import { AcademicCalendarEvent, TimetableSlot } from "@/types";
 
+import { getAuthenticatedStudent } from "@/lib/auth/session";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
@@ -12,21 +14,10 @@ export async function GET(req: Request) {
     const dateParam = searchParams.get("date");
     const targetDate = dateParam ? new Date(dateParam) : new Date();
 
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-      include: {
-        target: true,
-        subjects: {
-          include: { attendance: true },
-        },
-        timetable: {
-          include: { subject: true },
-        },
-      },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json({ error: "Please log in first.", unauthenticated: true }, { status: 401 });
     }
 
     const rawEvents = await prisma.academicEvent.findMany();
@@ -42,16 +33,16 @@ export async function GET(req: Request) {
       isOfficial: e.isOfficial,
     }));
 
-    const timetableSlots: TimetableSlot[] = user.timetable.map((t) => ({
+    const timetableSlots: TimetableSlot[] = (user.timetable || []).map((t: any) => ({
       id: t.id,
       subjectId: t.subjectId,
-      subjectName: t.subject.name,
-      subjectCode: t.subject.code,
+      subjectName: t.subject?.name || "Subject",
+      subjectCode: t.subject?.code || "TCS",
       dayOfWeek: t.dayOfWeek as any,
       startTime: t.startTime,
       endTime: t.endTime,
       classType: (t.classType as any) || "THEORY",
-      color: t.subject.color,
+      color: t.subject?.color || "#0c81eb",
     }));
 
     const schedule = getTomorrowSchedule({
@@ -64,7 +55,7 @@ export async function GET(req: Request) {
     const safetyBuffer = user.target?.safetyBuffer ?? 2.0;
 
     const scheduledSubjectsData = schedule.slots.map((slot) => {
-      const sub = user.subjects.find((s) => s.id === slot.subjectId);
+      const sub = (user.subjects || []).find((s: any) => s.id === slot.subjectId);
       return {
         subjectId: slot.subjectId,
         subjectCode: slot.subjectCode,

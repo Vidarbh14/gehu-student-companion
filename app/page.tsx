@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -18,8 +18,10 @@ import {
   ChevronRight,
   Lock,
 } from "lucide-react";
+import { AuthModal } from "@/components/AuthModal";
 
 export default function LandingPage() {
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
       {/* Glow background effects */}
@@ -54,20 +56,20 @@ export default function LandingPage() {
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
-            <Link
-              href="/dashboard"
+            <button
+              onClick={() => setAuthModalOpen(true)}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
             >
-              <span>Get Started</span>
+              <span>Log In with Student ID</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href="/dashboard"
+            </button>
+            <button
+              onClick={() => setAuthModalOpen(true)}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-slate-300 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm shadow-sm transition-all"
             >
-              <span>Explore Live Demo</span>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
-            </Link>
+              <Lock className="w-4 h-4 text-blue-500" />
+              <span>Official GEHU ERP Sync</span>
+            </button>
           </div>
 
           <div className="flex items-center justify-center gap-6 pt-3 text-xs text-slate-500 dark:text-slate-400">
@@ -290,6 +292,15 @@ export default function LandingPage() {
           </a>
         </div>
       </footer>
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        canClose={true}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={() => {
+          window.location.href = "/dashboard";
+        }}
+      />
     </div>
   );
 }

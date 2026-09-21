@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { generateForecastCurve } from "@/lib/attendance/attendanceEngine";
 
+import { getAuthenticatedStudent } from "@/lib/auth/session";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
@@ -9,25 +11,17 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const subjectId = searchParams.get("subjectId");
 
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-      include: {
-        target: true,
-        subjects: {
-          include: { attendance: true },
-        },
-      },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json({ error: "Please log in first.", unauthenticated: true }, { status: 401 });
     }
 
     const targetPercentage = user.target?.targetPercentage ?? 75.0;
 
     // If a specific subject is requested
     if (subjectId) {
-      const subject = user.subjects.find((s) => s.id === subjectId);
+      const subject = user.subjects?.find((s: any) => s.id === subjectId);
       if (!subject || !subject.attendance) {
         return NextResponse.json({ error: "Subject not found." }, { status: 404 });
       }

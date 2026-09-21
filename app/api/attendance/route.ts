@@ -9,31 +9,18 @@ import {
 import { calculateDateAwareRemainingClasses } from "@/lib/timetable/timetableEngine";
 import { AcademicCalendarEvent, TimetableSlot } from "@/types";
 
+import { getAuthenticatedStudent } from "@/lib/auth/session";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-      include: {
-        target: true,
-        subjects: {
-          include: {
-            attendance: true,
-          },
-        },
-        timetable: {
-          include: {
-            subject: true,
-          },
-        },
-      },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
       return NextResponse.json(
-        { error: "User profile not found." },
-        { status: 404 }
+        { error: "Please log in to view your attendance.", unauthenticated: true },
+        { status: 401 }
       );
     }
 
@@ -50,16 +37,16 @@ export async function GET() {
       isOfficial: e.isOfficial,
     }));
 
-    const timetableSlots: TimetableSlot[] = user.timetable.map((t) => ({
+    const timetableSlots: TimetableSlot[] = (user.timetable || []).map((t: any) => ({
       id: t.id,
       subjectId: t.subjectId,
-      subjectName: t.subject.name,
-      subjectCode: t.subject.code,
+      subjectName: t.subject?.name || "Subject",
+      subjectCode: t.subject?.code || "TCS",
       dayOfWeek: t.dayOfWeek as any,
       startTime: t.startTime,
       endTime: t.endTime,
       classType: (t.classType as any) || "THEORY",
-      color: t.subject.color,
+      color: t.subject?.color || "#0c81eb",
     }));
 
     const semesterEndDate = new Date("2026-12-24");
@@ -76,7 +63,7 @@ export async function GET() {
     let totalAttended = 0;
     let totalConducted = 0;
 
-    const subjects = user.subjects.map((s) => {
+    const subjects = (user.subjects || []).map((s: any) => {
       const att = s.attendance?.attended ?? 0;
       const cond = s.attendance?.conducted ?? 0;
       totalAttended += att;
@@ -143,12 +130,10 @@ export async function POST(req: Request) {
     const { action, subjectId, attended, conducted, targetPercentage, safetyBuffer } =
       body;
 
-    const user = await prisma.user.findFirst({
-      where: { email: "demo@gehu.ac.in" },
-    });
+    const user = await getAuthenticatedStudent();
 
     if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
+      return NextResponse.json({ error: "Please log in first.", unauthenticated: true }, { status: 401 });
     }
 
     // 1. Update target and buffer settings
