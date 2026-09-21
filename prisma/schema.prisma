@@ -3,7 +3,8 @@
 // Can be switched to PostgreSQL for production Vercel deployment by updating provider and DATABASE_URL
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
